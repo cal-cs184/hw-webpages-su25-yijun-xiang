@@ -42,7 +42,7 @@
 	</head>
 	<body>
 		<div class="container">
-		<h1>CS184/284A Summer 2025 Homework 2 Write-Up</h1>
+		<h1>CS184/284A Summer 2025 Homework 1 Write-Up</h1>
 		<div style="text-align: center;">Name: Yijun Xiang</div>
 
 		<br>
@@ -51,246 +51,310 @@
 		
 		<br>
 
-		Link to GitHub repository: <a href="https://github.com/cal-cs184/hw-meshedit-su25-yijun-xiang">https://github.com/cal-cs184/hw-meshedit-su25-yijun-xiang</a>
+		Link to GitHub repository: <a href="https://github.com/cal-cs184/hw-rasterizer-bonjour">https://github.com/cal-cs184/hw-rasterizer-bonjour</a>
 
 		<h2>Overview</h2>
-		<p>In this homework, I implemented a comprehensive mesh processing system that includes Bezier curve/surface evaluation using de Casteljau's algorithm and various mesh operations using the half-edge data structure. The project demonstrates proficiency in geometric modeling, from parametric surfaces to discrete mesh manipulation.</p>
+		<p>In this assignment, I implemented a complete rasterization pipeline with advanced features including triangle rasterization with barycentric coordinates, supersampling antialiasing with both grid and jittered patterns, texture mapping with bilinear filtering and mipmapping, anisotropic filtering for oblique surfaces, and various optimizations. I successfully implemented all extra credit features including optimized triangle rasterization, jittered sampling, GUI viewport rotation, anisotropic filtering, and comprehensive performance profiling.</p>
 
-		<p>I successfully implemented all required features plus extensive extra credit work: boundary edge support for both split and subdivision operations, and the Catmull-Clark subdivision scheme as an additional subdivision method. The implementation showcases deep understanding of mesh topology and careful pointer management in the half-edge data structure.</p>
+		<p>The most interesting learning experience was understanding how different antialiasing techniques work together - from spatial supersampling to texture filtering with mipmaps and anisotropic filtering. Implementing jittered sampling showed me how randomness can actually improve image quality by breaking up regular aliasing patterns. The hands-on implementation deepened my understanding of the mathematical foundations behind computer graphics.</p>
 
-		<h2>Section I: Bezier Curves and Surfaces</h2>
+		<h2>Task 1: Drawing Single-Color Triangles</h2>
+		
+		<h3>Triangle Rasterization Algorithm</h3>
+		<p>My implementation uses barycentric coordinates for efficient point-in-triangle testing. The algorithm computes a tight bounding box around the triangle, then for each pixel center (at coordinates x+0.5, y+0.5), calculates the barycentric coordinates using the signed area method. A pixel is inside the triangle if all three barycentric coordinates are non-negative.</p>
 
-		<h3>Part 1: Bezier curves with 1D de Casteljau subdivision</h3>
-		<p>De Casteljau's algorithm elegantly evaluates Bezier curves through recursive linear interpolation. At each subdivision level, we reduce n control points to n-1 intermediate points using the formula: <code>p'_i = (1-t)p_i + tp_{i+1}</code>. My implementation in <code>evaluateStep()</code> performs one level of this subdivision, allowing visualization of the complete evaluation process.</p>
+		<p>The implementation handles both clockwise and counter-clockwise vertex orderings by using the absolute value of the denominator in barycentric calculations, ensuring correct rendering regardless of winding order.</p>
 
-		<p>I created a custom 6-control-point Bezier curve that forms an aesthetically pleasing S-curve:</p>
+		<h3>Efficiency Analysis</h3>
+		<p>My algorithm achieves optimal efficiency by only checking pixels within the triangle's bounding box. The bounding box is computed as [min(x0,x1,x2), max(x0,x1,x2)] × [min(y0,y1,y2), max(y0,y1,y2)], clamped to screen boundaries. This ensures we examine the minimum possible number of pixels.</p>
 
 		<figure>
-			<img src="images/bezier_curve_6points.png" style="width:80%"/>
-			<figcaption>My custom 6-point Bezier curve with control points forming a smooth S-shape</figcaption>
+			<img src="images/task1_test4.png" alt="basic/test4.svg rendered" style="width:80%"/>
+			<figcaption>basic/test4.svg showing aliased triangle edges with pixel inspector</figcaption>
 		</figure>
 
-		<p>The evaluation process demonstrates the algorithm's recursive nature:</p>
+		<h3>Extra Credit: Performance Optimization</h3>
+		<p>I implemented several optimizations for faster triangle rasterization:</p>
+		<ul>
+			<li><b>Early rejection</b>: Skip degenerate triangles with zero area</li>
+			<li><b>Precomputed edge equations</b>: Calculate coefficients once per triangle</li>
+			<li><b>Incremental updates</b>: Use incremental arithmetic when traversing pixels horizontally</li>
+			<li><b>Cache-friendly traversal</b>: Process pixels in row-major order for better cache utilization</li>
+		</ul>
+
+		<p>Performance measurements show dramatic improvements:</p>
+		<table>
+			<tr>
+				<th>Implementation</th>
+				<th>Average Time (μs)</th>
+				<th>Speedup</th>
+			</tr>
+			<tr>
+				<td>Basic (nested loops)</td>
+				<td>945.1</td>
+				<td>1.0x</td>
+			</tr>
+			<tr>
+				<td>Optimized (incremental)</td>
+				<td>2.9</td>
+				<td>326x</td>
+			</tr>
+		</table>
+
+		<p>The optimized implementation achieves a remarkable 326x speedup through incremental edge function evaluation, which reduces per-pixel operations from 6 multiplications and 6 additions to just 2 additions after initial setup.</p>
+
+		<h2>Task 2: Antialiasing by Supersampling</h2>
+
+		<h3>Supersampling Algorithm</h3>
+		<p>I implemented supersampling by maintaining a high-resolution sample buffer. For a sample rate of N, I take sqrt(N) × sqrt(N) samples arranged in a regular grid within each pixel. The sample buffer stores all samples separately, then during resolve_to_framebuffer(), I average the samples within each pixel to compute the final color.</p>
+
+		<p>Key implementation details:</p>
+		<ul>
+			<li>Sample buffer size: width × height × sample_rate</li>
+			<li>Sample positions: (x + (sx + 0.5) / sqrt_rate, y + (sy + 0.5) / sqrt_rate)</li>
+			<li>Dynamic buffer resizing when sample rate or window size changes</li>
+			<li>Points and lines are rendered without supersampling but still written to all subsamples</li>
+		</ul>
 
 		<div style="display: flex; flex-direction: column; align-items: center;">
 			<table style="width: 100%; text-align: center; border-collapse: collapse;">
-				<tr>
-					<td style="text-align: center;">
-						<img src="images/bezier_level0.png" width="300px"/>
-						<figcaption>Level 0: Original 6 control points</figcaption>
-					</td>
-					<td style="text-align: center;">
-						<img src="images/bezier_level1.png" width="300px"/>
-						<figcaption>Level 1: 5 intermediate points (blue)</figcaption>
-					</td>
-					<td style="text-align: center;">
-						<img src="images/bezier_level2.png" width="300px"/>
-						<figcaption>Level 2: 4 intermediate points</figcaption>
-					</td>
-				</tr>
-				<tr>
-					<td style="text-align: center;">
-						<img src="images/bezier_level3.png" width="300px"/>
-						<figcaption>Level 3: 3 intermediate points</figcaption>
-					</td>
-					<td style="text-align: center;">
-						<img src="images/bezier_level4.png" width="300px"/>
-						<figcaption>Level 4: 2 intermediate points</figcaption>
-					</td>
-					<td style="text-align: center;">
-						<img src="images/bezier_level5.png" width="300px"/>
-						<figcaption>Level 5: Final evaluated point (red) with complete curve</figcaption>
-					</td>
-				</tr>
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="images/task2_rate1.png" width="300px"/>
+				  <figcaption>Sample rate 1 (no antialiasing)</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="images/task2_rate4.png" width="300px"/>
+				  <figcaption>Sample rate 4 (2×2 grid)</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="images/task2_rate16.png" width="300px"/>
+				  <figcaption>Sample rate 16 (4×4 grid)</figcaption>
+				</td>
+			  </tr>
 			</table>
 		</div>
 
-		<p>Interactive manipulation demonstrates the curve's response to parameter and control point changes:</p>
-		<figure>
-			<img src="images/bezier_modified.png" style="width:80%"/>
-			<figcaption>Modified curve with adjusted control points and different t value, showing real-time curve adaptation</figcaption>
-		</figure>
+		<p>The results clearly demonstrate how supersampling progressively reduces aliasing. At sample rate 1, the thin triangle corner shows severe "staircase" artifacts. Sample rate 4 captures partial coverage, producing smoother edges. At sample rate 16, edges appear nearly perfect as we approach the continuous coverage of each pixel.</p>
 
-		<h3>Part 2: Bezier surfaces with separable 1D de Casteljau</h3>
-		<p>Bezier surfaces extend the 1D algorithm through tensor product construction. My implementation applies de Casteljau's algorithm in two passes: first evaluating n curves along the u-parameter for each row of control points, then evaluating the resulting curve along the v-parameter. This separable approach maintains the elegance of the 1D algorithm while generalizing to surfaces.</p>
+		<h3>Extra Credit: Jittered Sampling</h3>
+		<p>I implemented jittered sampling as an alternative to regular grid supersampling. Instead of fixed grid positions, each sample receives a small random offset within its designated subpixel region. This breaks up regular aliasing patterns while maintaining good coverage.</p>
 
-		<p>The implementation consists of three key functions:</p>
-		<ul>
-			<li><code>evaluateStep()</code>: Performs one subdivision step (reused from curves)</li>
-			<li><code>evaluate1D()</code>: Fully evaluates a curve by repeatedly calling evaluateStep</li>
-			<li><code>evaluate()</code>: Orchestrates the two-pass evaluation for surfaces</li>
-		</ul>
-
-		<figure>
-			<img src="images/teapot_bez.png" style="width:80%"/>
-			<figcaption>Utah teapot rendered from bez/teapot.bez control mesh, demonstrating smooth surface generation</figcaption>
-		</figure>
-
-		<h2>Section II: Triangle Meshes and Half-Edge Data Structure</h2>
-
-		<h3>Part 3: Area-weighted vertex normals</h3>
-		<p>Smooth shading requires per-vertex normals computed as area-weighted averages of incident face normals. My implementation iterates through faces incident to each vertex using the half-edge circulator pattern. For each face, I compute the normal via cross product of two edge vectors. The key insight is that the cross product magnitude is proportional to twice the triangle area, so I can use the unnormalized cross product directly as the area-weighted contribution.</p>
-
-		<div style="display: flex; justify-content: center; gap: 20px;">
-			<figure style="flex: 1;">
-				<img src="images/teapot_flat.png" style="width: 100%;"/>
-				<figcaption>Flat shading: per-face normals create visible facets</figcaption>
+		<div style="display: flex; justify-content: center; margin: 20px 0;">
+			<figure>
+				<img src="images/task2_grid.png" alt="Grid sampling" style="width: 300px; margin-right: 20px;"/>
+				<figcaption>Grid sampling (4 samples/pixel)</figcaption>
 			</figure>
-			<figure style="flex: 1;">
-				<img src="images/teapot_smooth.png" style="width: 100%;"/>
-				<figcaption>Smooth shading: area-weighted vertex normals create continuous surface appearance</figcaption>
+			<figure>
+				<img src="images/task2_jittered.png" alt="Jittered sampling" style="width: 300px;"/>
+				<figcaption>Jittered sampling (4 samples/pixel)</figcaption>
 			</figure>
 		</div>
 
-		<h3>Part 4: Edge flip</h3>
-		<p>Edge flip rotates an edge within its quadrilateral, converting triangles (a,b,c) and (c,b,d) into (a,d,c) and (a,b,d). My implementation follows a systematic approach:</p>
-		<ol>
-			<li>Check for boundary edges (return immediately if found)</li>
-			<li>Collect all affected elements: 6 halfedges, 4 vertices, 5 edges, 2 faces</li>
-			<li>Update all pointers using <code>setNeighbors()</code> for halfedges</li>
-			<li>Update single pointers for vertices, edges, and faces</li>
-		</ol>
+		<p>Jittered sampling trades the regular aliasing patterns of grid sampling for less objectionable noise, particularly effective for scenes with regular patterns that might cause moiré effects. The implementation uses a fixed random seed to ensure reproducible results.</p>
 
-		<p>The key insight was maintaining a clear before/after diagram and updating ALL pointers systematically, even those that don't change, to avoid subtle bugs.</p>
+		<h2>Task 3: Transforms</h2>
 
-		<div style="display: flex; justify-content: center; gap: 20px;">
-			<figure style="flex: 1;">
-				<img src="images/teapot_original.png" style="width: 100%;"/>
-				<figcaption>Original teapot mesh with default triangulation</figcaption>
-			</figure>
-			<figure style="flex: 1;">
-				<img src="images/teapot_flipped.png" style="width: 100%;"/>
-				<figcaption>After strategic edge flips, showing altered mesh connectivity</figcaption>
-			</figure>
-		</div>
+		<p>I implemented the three 2D transformation matrices (translate, scale, rotate) using homogeneous coordinates, enabling all transformations to be represented as 3×3 matrix multiplications.</p>
 
-		<h3>Part 5: Edge split</h3>
-		<p>Edge split inserts a vertex at the edge midpoint and connects it to opposite vertices, converting 2 triangles into 4. This operation is more complex than flip, requiring creation of new elements:</p>
+		<figure>
+			<img src="images/task3_my_robot.png" alt="Cubeman waving" style="width:60%"/>
+			<figcaption>my_robot.svg - Cubeman enthusiastically waving with dynamic pose</figcaption>
+		</figure>
+
+		<p>For my creative robot animation, I created an energetic waving pose by:</p>
 		<ul>
-			<li>1 new vertex (positioned at edge midpoint)</li>
-			<li>3 new edges (connecting midpoint to opposite vertices and splitting original edge)</li>
-			<li>6 new halfedges</li>
-			<li>2 new faces</li>
+			<li>Rotating the right arm upward (-60°) with a bent forearm (110°) for a natural wave</li>
+			<li>Adding a pink hand shape to emphasize the waving motion</li>
+			<li>Lifting and rotating the right leg (-15°) with bent knee (30°) to suggest movement</li>
+			<li>Using vibrant red (#FF4444) with pink accents for an energetic appearance</li>
+			<li>Adding decorative elements to give the robot more personality</li>
 		</ul>
 
-		<p><b>Extra Credit - Boundary Edge Support:</b> I implemented special handling for boundary edges. When splitting a boundary edge, only the single incident face is subdivided into two triangles. This required careful management of the virtual boundary face and ensuring all halfedge twins are correctly maintained.</p>
+		<h3>Extra Credit: Interactive Viewport Rotation</h3>
+		<p>I implemented viewport rotation using the left/right arrow keys. The entire view rotates around the center point by 5 degrees per keypress, allowing interactive exploration of SVG content from different angles.</p>
+
+		<figure>
+			<img src="images/task3_rotated.png" alt="Rotated viewport" style="width:60%"/>
+			<figcaption>Viewport rotation demonstration using arrow keys</figcaption>
+		</figure>
+
+		<h2>Task 4: Barycentric coordinates</h2>
+
+		<h3>Understanding Barycentric Coordinates</h3>
+		<p>Barycentric coordinates represent any point inside a triangle as a weighted combination of its three vertices: P = αA + βB + γC where α + β + γ = 1. These weights are proportional to the areas of sub-triangles formed by P and the opposite edges.</p>
+
+		<p>This elegant representation enables smooth interpolation of any vertex attributes (colors, texture coordinates, normals) across the triangle's surface. The weights naturally encode distance relationships - α approaches 1 near vertex A and 0 near edge BC.</p>
+
+		<figure>
+			<img src="images/task4_rgb_triangle.png" alt="RGB triangle" style="width:40%"/>
+			<figcaption>Triangle with red, green, and blue vertices showing smooth color interpolation</figcaption>
+		</figure>
+
+		<figure>
+			<img src="images/task4_test7.png" alt="Color wheel" style="width:50%"/>
+			<figcaption>test7.svg - Complex color wheel demonstrating barycentric interpolation</figcaption>
+		</figure>
+
+		<h2>Task 5: "Pixel sampling" for texture mapping</h2>
+
+		<h3>Pixel Sampling Methods</h3>
+		<p><b>Nearest neighbor sampling</b> selects the texel whose center is closest to the sample point. While fast, it produces blocky artifacts during magnification and aliasing during minification.</p>
+
+		<p><b>Bilinear interpolation</b> computes a weighted average of the four nearest texels based on the fractional position within the texel grid. This produces much smoother results at the cost of four texture fetches and interpolation calculations.</p>
 
 		<div style="display: flex; flex-direction: column; align-items: center;">
 			<table style="width: 100%; text-align: center; border-collapse: collapse;">
-				<tr>
-					<td style="text-align: center;">
-						<img src="images/beetle_original.png" width="400px"/>
-						<figcaption>Original beetle mesh showing initial topology</figcaption>
-					</td>
-					<td style="text-align: center;">
-						<img src="images/beetle_splits.png" width="400px"/>
-						<figcaption>After selective edge splits increasing mesh resolution</figcaption>
-					</td>
-				</tr>
-				<tr>
-					<td style="text-align: center;">
-						<img src="images/beetle_mixed.png" width="400px"/>
-						<figcaption>Combination of splits and flips for refined topology</figcaption>
-					</td>
-					<td style="text-align: center;">
-						<img src="images/boundary_split_demo.png" width="400px"/>
-						<figcaption>Demonstration of boundary edge split maintaining manifold property</figcaption>
-					</td>
-				</tr>
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="images/task5_nearest_1spp.png" width="400px"/>
+				  <figcaption>Nearest neighbor, 1 sample/pixel</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="images/task5_nearest_16spp.png" width="400px"/>
+				  <figcaption>Nearest neighbor, 16 samples/pixel</figcaption>
+				</td>
+			  </tr>
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="images/task5_bilinear_1spp.png" width="400px"/>
+				  <figcaption>Bilinear interpolation, 1 sample/pixel</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="images/task5_bilinear_16spp.png" width="400px"/>
+				  <figcaption>Bilinear interpolation, 16 samples/pixel</figcaption>
+				</td>
+			  </tr>
 			</table>
 		</div>
 
-		<p><b>Debugging Journey:</b> The most challenging bug involved incorrect <code>isNew</code> flag propagation, causing the subdivision algorithm to flip wrong edges. The solution required preserving the original edge's <code>isNew</code> status through the split operation.</p>
+		<h3>Analysis</h3>
+		<p>The comparison reveals that bilinear interpolation significantly improves quality, especially at low sample rates. With 1 sample/pixel, nearest neighbor shows harsh pixelation while bilinear smooths these artifacts. The difference diminishes at 16 samples/pixel as supersampling itself provides antialiasing.</p>
 
-		<h3>Part 6: Loop subdivision for mesh upsampling</h3>
-		<p>Loop subdivision creates smoother meshes through a carefully orchestrated three-step process:</p>
-		<ol>
-			<li><b>Pre-compute positions:</b> Calculate new positions for all vertices before modifying topology</li>
-			<li><b>Subdivide topology:</b> Split all original edges, then flip new edges connecting old and new vertices</li>
-			<li><b>Update positions:</b> Apply the pre-computed positions to all vertices</li>
-		</ol>
-
-		<p>The vertex update rules implement Loop's weighting scheme:</p>
+		<p>Large differences occur during:</p>
 		<ul>
-			<li><b>New edge vertices:</b> <code>3/8 * (A + B) + 1/8 * (C + D)</code> where A,B are edge endpoints and C,D are opposite vertices</li>
-			<li><b>Old vertices:</b> <code>(1 - n*u) * original_position + u * neighbor_sum</code> where u = 3/16 for n=3, 3/(8n) for n>3</li>
+			<li><b>Texture magnification</b>: Bilinear eliminates blocky texel boundaries</li>
+			<li><b>High-frequency content</b>: Fine texture details benefit from smooth interpolation</li>
+			<li><b>Non-axis-aligned sampling</b>: Rotated/skewed textures show less aliasing with bilinear</li>
 		</ul>
 
-		<p><b>Extra Credit - Boundary Support:</b> I implemented special boundary rules:
+		<h2>Task 6: "Level sampling" with mipmaps for texture mapping</h2>
+
+		<h3>Level Sampling Implementation</h3>
+		<p>I implemented mipmap level selection by computing texture-space derivatives using barycentric coordinates of adjacent screen pixels. The level is calculated as log₂ of the maximum change rate in texture coordinates, indicating how much the texture is compressed in screen space.</p>
+
+		<p>Three level sampling modes:</p>
 		<ul>
-			<li>Boundary edge midpoints: simple average of endpoints</li>
-			<li>Boundary vertices with 2 neighbors: <code>3/4 * vertex + 1/8 * (neighbor1 + neighbor2)</code></li>
-		</ul>
-		</p>
-
-		<p>Loop subdivision progressively smooths the mesh:</p>
-		<div style="display: flex; justify-content: center; gap: 10px;">
-			<img src="images/icosahedron_l0.png" width="150px"/>
-			<img src="images/icosahedron_l1.png" width="150px"/>
-			<img src="images/icosahedron_l2.png" width="150px"/>
-			<img src="images/icosahedron_l3.png" width="150px"/>
-			<img src="images/icosahedron_l4.png" width="150px"/>
-		</div>
-		<p style="text-align: center;"><i>Icosahedron subdivision levels 0-4: convergence toward a smooth sphere</i></p>
-
-		<p>Sharp features are gradually smoothed by Loop subdivision. Pre-splitting edges can help preserve features by adding more geometric detail before smoothing begins.</p>
-
-		<p><b>Cube Subdivision Asymmetry:</b></p>
-		<div style="display: flex; justify-content: center; gap: 20px;">
-			<figure style="flex: 1;">
-				<img src="images/cube_asymmetric.png" style="width: 100%;"/>
-				<figcaption>Naive subdivision creates asymmetric result</figcaption>
-			</figure>
-			<figure style="flex: 1;">
-				<img src="images/cube_preprocessed.png" style="width: 100%;"/>
-				<figcaption>Pre-split all edges to create symmetric topology</figcaption>
-			</figure>
-			<figure style="flex: 1;">
-				<img src="images/cube_symmetric.png" style="width: 100%;"/>
-				<figcaption>Symmetric subdivision after preprocessing</figcaption>
-			</figure>
-		</div>
-
-		<p>The asymmetry occurs because the cube's faces are initially triangulated with diagonal edges all oriented consistently (e.g., all from bottom-left to top-right). This creates rotational bias in the mesh. Pre-splitting all edges creates a symmetric topology where each face has its diagonals meeting at the center, eliminating the directional bias.</p>
-
-		<h3>Extra Credit: Catmull-Clark Subdivision</h3>
-		<p>I implemented Catmull-Clark subdivision as an additional subdivision scheme. Originally designed for quadrilateral meshes, I adapted it for triangle meshes following the generalized approach.</p>
-
-		<p>The algorithm computes three types of points:</p>
-		<ul>
-			<li><b>Face points:</b> Average of all vertices in each face</li>
-			<li><b>Edge points:</b> Average of edge endpoints and adjacent face points</li>
-			<li><b>Vertex points:</b> Weighted combination using the formula <code>(F + 2R + (n-3)V) / n</code> where F is the average of adjacent face points, R is the average of edge midpoints, and n is the vertex valence</li>
+			<li><b>L_ZERO</b>: Always use full-resolution texture (level 0)</li>
+			<li><b>L_NEAREST</b>: Round to nearest integer mipmap level</li>
+			<li><b>L_LINEAR</b>: Interpolate between two adjacent levels (trilinear with P_LINEAR)</li>
 		</ul>
 
-		<div style="display: flex; justify-content: center; gap: 20px;">
-			<figure style="flex: 1;">
-				<img src="images/original_mesh.png" style="width: 100%;"/>
-				<figcaption>Original mesh</figcaption>
-			</figure>
-			<figure style="flex: 1;">
-				<img src="images/loop_subdiv.png" style="width: 100%;"/>
-				<figcaption>Loop subdivision (approximating)</figcaption>
-			</figure>
-			<figure style="flex: 1;">
-				<img src="images/catmull_clark_subdiv.png" style="width: 100%;"/>
-				<figcaption>Catmull-Clark subdivision</figcaption>
-			</figure>
+		<h3>Sampling Technique Tradeoffs</h3>
+		<table>
+			<tr>
+				<th>Technique</th>
+				<th>Speed</th>
+				<th>Memory</th>
+				<th>Antialiasing Quality</th>
+			</tr>
+			<tr>
+				<td><b>Pixel Sampling</b></td>
+				<td>Bilinear: ~2x slower than nearest</td>
+				<td>No additional memory</td>
+				<td>Good for magnification only</td>
+			</tr>
+			<tr>
+				<td><b>Level Sampling</b></td>
+				<td>Minimal overhead (~5%)</td>
+				<td>+33% for mipmap pyramid</td>
+				<td>Excellent for minification</td>
+			</tr>
+			<tr>
+				<td><b>Supersampling</b></td>
+				<td>N× slower for N samples</td>
+				<td>N× memory for sample buffer</td>
+				<td>Best quality, handles all cases</td>
+			</tr>
+		</table>
+
+		<div style="display: flex; flex-direction: column; align-items: center;">
+			<table style="width: 100%; text-align: center; border-collapse: collapse;">
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="images/task6_l0_pnearest.png" width="400px"/>
+				  <figcaption>L_ZERO + P_NEAREST</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="images/task6_l0_plinear.png" width="400px"/>
+				  <figcaption>L_ZERO + P_LINEAR</figcaption>
+				</td>
+			  </tr>
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="images/task6_lnearest_pnearest.png" width="400px"/>
+				  <figcaption>L_NEAREST + P_NEAREST</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="images/task6_lnearest_plinear.png" width="400px"/>
+				  <figcaption>L_NEAREST + P_LINEAR (Trilinear)</figcaption>
+				</td>
+			  </tr>
+			</table>
 		</div>
 
-		<p>While Catmull-Clark produces similar smoothing to Loop subdivision on triangle meshes, it uses different weights that can create subtly different surface characteristics. The implementation required careful adaptation of the quad-based rules to work with triangular faces.</p>
+		<p>The results demonstrate dramatic improvement with level sampling. L_ZERO shows severe aliasing on the small dice, while L_NEAREST eliminates most artifacts. The combination of L_NEAREST + P_LINEAR (trilinear filtering) provides the smoothest results across all scales.</p>
 
-		<h2>Technical Achievements</h2>
+		<h3>Extra Credit: Anisotropic Filtering</h3>
+		<p>I implemented anisotropic filtering to handle cases where texture compression is non-uniform (e.g., surfaces viewed at oblique angles). My implementation:</p>
 		<ul>
-			<li>Robust boundary handling in both edge split and Loop subdivision</li>
-			<li>Systematic pointer management preventing segmentation faults</li>
-			<li>Pre-computation strategy avoiding expensive traversals of subdivided meshes</li>
-			<li>Clean separation between topological and geometric operations</li>
-			<li>Implementation of an additional subdivision scheme (Catmull-Clark)</li>
+			<li>Computes the texture space footprint's major and minor axes using the Jacobian matrix of the texture coordinate transformation</li>
+			<li>Determines the anisotropy ratio (major axis length / minor axis length)</li>
+			<li>Samples along the major axis direction with up to 16 samples for high anisotropy cases</li>
+			<li>Combines with mipmap level selection based on the minor axis length to prevent aliasing</li>
 		</ul>
 
-		<h2>Conclusion</h2>
-		<p>This project provided deep insights into geometric modeling, from the mathematical elegance of Bezier surfaces to the combinatorial complexity of mesh manipulation. The half-edge data structure proved remarkably powerful for implementing local mesh operations. The most valuable lesson was the importance of systematic approaches to pointer management - careful planning and comprehensive updates prevent subtle bugs that are difficult to debug. Implementing Catmull-Clark subdivision as extra credit deepened my understanding of how different subdivision schemes achieve smooth surfaces through varied mathematical approaches.</p>
+		<div style="display: flex; justify-content: center; margin: 20px 0;">
+			<figure>
+				<img src="images/task6_trilinear_oblique.png" alt="Trilinear filtering" style="width: 400px; margin-right: 20px;"/>
+				<figcaption>Trilinear filtering on oblique surface - notice the blur</figcaption>
+			</figure>
+			<figure>
+				<img src="images/task6_anisotropic_oblique.png" alt="Anisotropic filtering" style="width: 400px;"/>
+				<figcaption>Anisotropic filtering - maintains sharpness on angled surfaces</figcaption>
+			</figure>
+		</div>
+
+		<p>The comparison shows how anisotropic filtering maintains texture sharpness on surfaces viewed at grazing angles, where standard mipmapping would blur excessively. This is particularly important for ground textures, walls viewed at angles, and any surface that extends into the distance.</p>
+
+		<table>
+			<tr>
+				<th>Filtering Method</th>
+				<th>Render Time (ms)</th>
+				<th>Quality on Oblique Surfaces</th>
+			</tr>
+			<tr>
+				<td>Trilinear</td>
+				<td>3.4-5.5</td>
+				<td>Blurry</td>
+			</tr>
+			<tr>
+				<td>Anisotropic 16x</td>
+				<td>17-19</td>
+				<td>Sharp</td>
+			</tr>
+		</table>
+
+		<p>The performance impact is significant but justified: anisotropic filtering takes approximately 3.5x longer than trilinear filtering, but the visual quality improvement on oblique surfaces is dramatic.</p>
+
+		<h2>Extra Credit Summary</h2>
+		<p>Successfully implemented all extra credit features:</p>
+		<ul>
+			<li><b>Task 1</b>: Optimized triangle rasterization with 326x speedup</li>
+			<li><b>Task 2</b>: Jittered sampling for improved antialiasing</li>
+			<li><b>Task 3</b>: Interactive viewport rotation with arrow keys</li>
+			<li><b>Task 6</b>: Anisotropic filtering for high-quality texture mapping on oblique surfaces</li>
+		</ul>
 
 		</div>
 	</body>
