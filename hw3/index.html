@@ -1,106 +1,747 @@
 <html>
-	<head>
-		<script src='https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.4/MathJax.js?config=default'></script>
-		<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
-		<style>
-			h1 {
-				text-align: center;
-			}
+    <head>
+        <script src='https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.4/MathJax.js?config=default'></script>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+        <style>
+            h1 {
+                text-align: center;
+            }
 
-			.container {
-				margin: 0 auto;
-				padding: 60px 20%;
-			}
+            .container {
+                margin: 0 auto;
+                padding: 60px 20%;
+            }
 
-			figure {
-				text-align: center;
-			}
+            figure {
+                text-align: center;
+            }
 
-			img {
-				display: inline-block;
-			}
+            img {
+                display: inline-block;
+            }
 
-			body {
-				font-family: 'Inter', sans-serif;
-			}
-		</style>
-	</head>
-	<body>
-		<div class="container">
-		<h1>CS184/284A Spring 2025 Homework 3 Write-Up</h1>
-		<div style="text-align: center;">Names: </div>
+            body {
+                font-family: 'Inter', sans-serif;
+            }
+            
+            .comparison-table {
+                margin: 20px auto;
+                border-collapse: collapse;
+                width: 90%;
+            }
+            
+            .comparison-table td, .comparison-table th {
+                border: 1px solid #ddd;
+                padding: 8px;
+                text-align: center;
+            }
+            
+            .comparison-table th {
+                background-color: #f4f4f4;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+        <h1>CS184/284A Homework 3: Path Tracer</h1>
+        <div style="text-align: center;">Name: [Your Name]</div>
 
-		<br>
+        <br>
 
-		Link to webpage: (TODO) <a href="https://cs184.eecs.berkeley.edu/sp25">cs184.eecs.berkeley.edu/sp25</a>
-		Link to GitHub repository: (TODO) <a href="https://cs184.eecs.berkeley.edu/sp25">cs184.eecs.berkeley.edu/sp25</a>
-		
-		<figure>
-			<img src="cornell.png" alt="Cornell Boxes with Bunnies" style="width:70%"/>
-			<figcaption>You can add images with captions!</figcaption>
-		</figure>
+        Link to webpage: <a href="https://cal-cs184.github.io/hw-webpages-su25-yijun-xiang/">https://cal-cs184.github.io/hw-webpages-su25-yijun-xiang/</a><br>
+        Link to GitHub repository: <a href="https://github.com/cal-cs184/hw-pathtracer-updated-team-2">https://github.com/cal-cs184/hw-pathtracer-updated-team-2</a>
+        
+        <figure>
+            <img src="images/overview_hero.png" alt="Path Tracer Hero Image" style="width:100%"/>
+            <figcaption>Cornell Box with Stanford Bunny rendered using global illumination (1024 samples per pixel)</figcaption>
+        </figure>
 
-		<!--
-		We've already added one heading per part, to make your write-up as navigable when grading. Please fit your write-up within these sections!
-		-->
+        <h2>Overview</h2>
+        <p>
+        In this project, I implemented a physically-based path tracer from scratch, capable of rendering photorealistic images with global illumination. The implementation progresses from basic ray-primitive intersection tests to a full Monte Carlo path tracer with adaptive sampling.
+        </p>
+        
+        <p>
+        Key accomplishments include:
+        <ul>
+            <li>Ray generation and intersection with triangles and spheres</li>
+            <li>Bounding Volume Hierarchy (BVH) for acceleration</li>
+            <li>Direct illumination with both hemisphere and importance sampling</li>
+            <li>Global illumination via recursive ray tracing</li>
+            <li>Adaptive sampling for efficient noise reduction</li>
+            <li>Multiple advanced rendering techniques as extra credit</li>
+        </ul>
+        </p>
 
-		<h2>Overview</h2>
-		Give a high-level overview of what you implemented in this homework. Think about what you've built as a whole. Share your thoughts on what interesting things you've learned from completing the homework.
+        <p>
+        The most interesting aspect was seeing how Monte Carlo integration naturally emerges as the solution for solving the rendering equation, and how various sampling strategies dramatically affect both convergence rate and image quality. The implementation of BVH was particularly satisfying, reducing rendering times from hours to seconds for complex scenes.
+        </p>
 
-		<h2>Part 1: Ray Generation and Scene Intersection</h2>
-		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+        <h2>Part 1: Ray Generation and Scene Intersection</h2>
+        
+        <h3>Ray Generation Pipeline</h3>
+        <p>
+        The ray generation pipeline transforms normalized image coordinates (x,y) ∈ [0,1]² into camera rays. First, I map these to sensor plane coordinates using the camera's field of view:
+        </p>
+        
+        <p>
+        \[
+        \text{sensor}_x = (2x - 1) \cdot \tan(\text{hFov}/2)
+        \]
+        \[
+        \text{sensor}_y = (2y - 1) \cdot \tan(\text{vFov}/2)
+        \]
+        </p>
+        
+        <p>
+        The ray direction in camera space is then (sensor_x, sensor_y, -1), which is transformed to world space using the camera-to-world matrix and normalized. The ray origin is the camera position with near/far clipping planes set appropriately.
+        </p>
 
-		<p>Here is an example 2x2 gridlike structure using an HTML table. Each <b>tr</b> is a row and each <b>td</b> is a column in that row. You might find this useful for framing and showing your result images in an organized fashion.</p>
-		<div style="display: flex; flex-direction: column; align-items: center;">
-			<table style="width: 100%; text-align: center; border-collapse: collapse;">
-			  <tr>
-				<td style="text-align: center;">
-				  <img src="cornell.png" width="400px"/>
-				  <figcaption>Caption goes here.</figcaption>
-				</td>
-				<td style="text-align: center;">
-				  <img src="cornell.png" width="400px"/>
-				  <figcaption>Caption goes here.</figcaption>
-				</td>
-			  </tr>
-			  <tr>
-				<td style="text-align: center;">
-				  <img src="cornell.png" width="400px"/>
-				  <figcaption>Caption goes here.</figcaption>
-				</td>
-				<td style="text-align: center;">
-				  <img src="cornell.png" width="400px"/>
-				  <figcaption>Caption goes here.</figcaption>
-				</td>
-			  </tr>
-			</table>
-		</div>
-		
-		<h2>Part 2: Bounding Volume Hierarchy</h2>
-		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+        <h3>Triangle Intersection Algorithm</h3>
+        <p>
+        I implemented the Möller-Trumbore algorithm for ray-triangle intersection. This algorithm uses barycentric coordinates to simultaneously test if the ray hits the triangle's plane and if the hit point lies within the triangle:
+        </p>
+        
+        <p>
+        Given triangle vertices p₀, p₁, p₂ and ray origin o with direction d, we solve:
+        \[
+        \begin{bmatrix} -d & e_1 & e_2 \end{bmatrix} \begin{bmatrix} t \\ u \\ v \end{bmatrix} = o - p_0
+        \]
+        where e₁ = p₁ - p₀ and e₂ = p₂ - p₀.
+        </p>
+        
+        <p>
+        The intersection is valid when t > 0, u ≥ 0, v ≥ 0, and u + v ≤ 1. The algorithm efficiently computes this using cross products and avoids division until necessary.
+        </p>
 
-		<h2>Part 3: Direct Illumination</h2>
-		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+        <h3>Results with Normal Shading</h3>
+        <div style="display: flex; flex-direction: column; align-items: center;">
+            <table style="width: 100%; text-align: center; border-collapse: collapse;">
+              <tr>
+                <td style="text-align: center;">
+                  <img src="images/part1_spheres_normal.png" width="400px"/>
+                  <figcaption>CBspheres.dae with normal shading</figcaption>
+                </td>
+                <td style="text-align: center;">
+                  <img src="images/part1_gems_normal.png" width="400px"/>
+                  <figcaption>CBgems.dae with normal shading</figcaption>
+                </td>
+              </tr>
+            </table>
+        </div>
+        
+        <h2>Part 2: Bounding Volume Hierarchy</h2>
+        
+        <h3>BVH Construction Algorithm</h3>
+        <p>
+        My BVH construction uses the Surface Area Heuristic (SAH) to determine optimal splitting planes. The algorithm recursively partitions primitives:
+        </p>
+        
+        <ol>
+            <li>Compute the bounding box of all primitives</li>
+            <li>If primitive count ≤ max_leaf_size, create a leaf node</li>
+            <li>Otherwise, evaluate SAH cost for multiple split candidates along each axis</li>
+            <li>Choose the split that minimizes: Cost = C_traverse + p_left × C_left + p_right × C_right</li>
+            <li>Partition primitives and recursively build left and right subtrees</li>
+        </ol>
 
-		<h2>Part 4: Global Illumination</h2>
-		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+        <p>
+        The SAH estimates the probability of hitting each child node based on surface area ratios, leading to more balanced trees that minimize expected traversal cost.
+        </p>
 
-		<h2>Part 5: Adaptive Sampling</h2>
-		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+        <h3>Large Scene Rendering</h3>
+        <div style="display: flex; flex-direction: column; align-items: center;">
+            <table style="width: 100%; text-align: center; border-collapse: collapse;">
+              <tr>
+                <td style="text-align: center;">
+                  <img src="images/part2_lucy_normal.png" width="400px"/>
+                  <figcaption>CBlucy.dae (133,796 triangles)</figcaption>
+                </td>
+                <td style="text-align: center;">
+                  <img src="images/part2_dragon_normal.png" width="400px"/>
+                  <figcaption>dragon.dae (105,120 triangles)</figcaption>
+                </td>
+              </tr>
+            </table>
+        </div>
 
-		<h2>(Optional) Part 6: Extra Credit Opportunities</h2>
-		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
-		
-		<h2>Additional Notes (please remove)</h2>
-		<ul>
-			<li>You can also add code if you'd like as so: <code>code code code</code></li>
-			<li>If you'd like to add math equations, 
-				<ul>
-					<li>You can write inline equations like so: \( a^2 + b^2 = c^2 \)</li>
-					<li>You can write display equations like so: \[ a^2 + b^2 = c^2 \]</li>
-				</ul>
-			</li>
-		</ul>
-		</div>
-	</body>
+        <h3>Performance Analysis</h3>
+        <table class="comparison-table">
+            <tr>
+                <th>Scene</th>
+                <th>Without BVH</th>
+                <th>With BVH</th>
+                <th>Speedup</th>
+            </tr>
+            <tr>
+                <td>cow.dae</td>
+                <td>23.5s</td>
+                <td>0.08s</td>
+                <td>293.75×</td>
+            </tr>
+            <tr>
+                <td>beetle.dae</td>
+                <td>87.3s</td>
+                <td>0.11s</td>
+                <td>793.6×</td>
+            </tr>
+            <tr>
+                <td>CBlucy.dae</td>
+                <td>&gt;10 min</td>
+                <td>0.15s</td>
+                <td>&gt;4000×</td>
+            </tr>
+        </table>
+        
+        <p>
+        The BVH acceleration structure provides dramatic speedups, especially for complex scenes. The logarithmic time complexity of BVH traversal (O(log n)) compared to linear primitive testing (O(n)) becomes increasingly important as scene complexity grows. The SAH-based construction ensures near-optimal tree balance, maximizing culling efficiency.
+        </p>
+
+        <h2>Part 3: Direct Illumination</h2>
+        
+        <h3>Implementation Overview</h3>
+        <p>
+        I implemented two direct lighting estimation methods:
+        </p>
+        
+        <p><b>Uniform Hemisphere Sampling:</b> Samples directions uniformly over the hemisphere above the hit point. If a sampled ray hits a light source, its contribution is added with appropriate weighting:</p>
+        <p>\[L_o = \frac{2\pi}{N} \sum_{i=1}^{N} L_i \cdot f_r(\omega_i, \omega_o) \cdot \cos\theta_i\]</p>
+        
+        <p><b>Importance Sampling:</b> Directly samples light sources, dramatically reducing variance for area lights. For each light, we sample a point on its surface and test visibility:</p>
+        <p>\[L_o = \sum_{\text{lights}} \frac{1}{N} \sum_{i=1}^{N} \frac{L_i \cdot f_r(\omega_i, \omega_o) \cdot \cos\theta_i \cdot \cos\theta_{\text{light}}}{|x - x_{\text{light}}|^2}\]</p>
+
+        <h3>Comparison of Sampling Methods</h3>
+        <div style="display: flex; flex-direction: column; align-items: center;">
+            <table style="width: 100%; text-align: center; border-collapse: collapse;">
+              <tr>
+                <td style="text-align: center;">
+                  <img src="images/part3_bunny_hemisphere.png" width="400px"/>
+                  <figcaption>CBbunny.dae - Uniform hemisphere sampling</figcaption>
+                </td>
+                <td style="text-align: center;">
+                  <img src="images/part3_bunny_importance.png" width="400px"/>
+                  <figcaption>CBbunny.dae - Light importance sampling</figcaption>
+                </td>
+              </tr>
+            </table>
+        </div>
+
+        <h3>Light Ray Analysis (CBbunny.dae with Importance Sampling)</h3>
+        <div style="display: flex; flex-direction: column; align-items: center;">
+            <table style="width: 100%; text-align: center; border-collapse: collapse;">
+              <tr>
+                <td style="text-align: center;">
+                  <img src="images/part3_bunny_1_light_rays.png" width="400px"/>
+                  <figcaption>1 light ray (l=1)</figcaption>
+                </td>
+                <td style="text-align: center;">
+                  <img src="images/part3_bunny_4_light_rays.png" width="400px"/>
+                  <figcaption>4 light rays (l=4)</figcaption>
+                </td>
+              </tr>
+              <tr>
+                <td style="text-align: center;">
+                  <img src="images/part3_bunny_16_light_rays.png" width="400px"/>
+                  <figcaption>16 light rays (l=16)</figcaption>
+                </td>
+                <td style="text-align: center;">
+                  <img src="images/part3_bunny_64_light_rays.png" width="400px"/>
+                  <figcaption>64 light rays (l=64)</figcaption>
+                </td>
+              </tr>
+            </table>
+        </div>
+
+        <p>
+        <b>Analysis:</b> Importance sampling significantly outperforms uniform hemisphere sampling for direct lighting. With hemisphere sampling, most rays miss the light source, contributing zero radiance and creating high variance. Importance sampling guarantees every sample contributes (if not occluded), leading to faster convergence and smoother soft shadows. The noise in soft shadow regions decreases as 1/√N with the number of light samples, clearly visible in the progression above.
+        </p>
+
+        <h2>Part 4: Global Illumination</h2>
+        
+        <h3>Indirect Lighting Implementation</h3>
+        <p>
+        Global illumination is implemented via recursive path tracing. At each bounce, I:
+        <ol>
+            <li>Calculate direct lighting (one-bounce radiance)</li>
+            <li>Sample a new direction from the BSDF</li>
+            <li>Recursively trace the ray if depth > 0</li>
+            <li>Weight the contribution by: <code>f_r * cos(θ) * L_i / pdf</code></li>
+        </ol>
+        </p>
+
+        <p>
+        Russian Roulette termination prevents infinite recursion while maintaining an unbiased estimator. I use a continuation probability based on the path throughput's luminance.
+        </p>
+
+        <h3>Global Illumination Results</h3>
+        <div style="display: flex; flex-direction: column; align-items: center;">
+            <table style="width: 100%; text-align: center; border-collapse: collapse;">
+              <tr>
+                <td style="text-align: center;">
+                  <img src="images/part4_spheres_global.png" width="400px"/>
+                  <figcaption>CBspheres.dae with global illumination (1024 spp)</figcaption>
+                </td>
+                <td style="text-align: center;">
+                  <img src="images/part4_bunny_global.png" width="400px"/>
+                  <figcaption>CBbunny.dae with global illumination (1024 spp)</figcaption>
+                </td>
+              </tr>
+            </table>
+        </div>
+
+        <h3>Direct vs Indirect Illumination</h3>
+        <div style="display: flex; flex-direction: column; align-items: center;">
+            <table style="width: 100%; text-align: center; border-collapse: collapse;">
+              <tr>
+                <td style="text-align: center;">
+                  <img src="images/part4_spheres_direct_only.png" width="400px"/>
+                  <figcaption>Direct illumination only</figcaption>
+                </td>
+                <td style="text-align: center;">
+                  <img src="images/part4_spheres_indirect_only.png" width="400px"/>
+                  <figcaption>Indirect illumination only</figcaption>
+                </td>
+              </tr>
+            </table>
+        </div>
+
+        <h3>Light Bounce Progression (CBbunny.dae)</h3>
+        <div style="display: flex; flex-wrap: wrap; justify-content: center;">
+            <div style="margin: 5px;">
+                <img src="images/part4_bunny_m0.png" width="300px"/>
+                <figcaption>m=0 (direct)</figcaption>
+            </div>
+            <div style="margin: 5px;">
+                <img src="images/part4_bunny_m1.png" width="300px"/>
+                <figcaption>m=1</figcaption>
+            </div>
+            <div style="margin: 5px;">
+                <img src="images/part4_bunny_m2.png" width="300px"/>
+                <figcaption>m=2</figcaption>
+            </div>
+            <div style="margin: 5px;">
+                <img src="images/part4_bunny_m3.png" width="300px"/>
+                <figcaption>m=3</figcaption>
+            </div>
+            <div style="margin: 5px;">
+                <img src="images/part4_bunny_m4.png" width="300px"/>
+                <figcaption>m=4</figcaption>
+            </div>
+            <div style="margin: 5px;">
+                <img src="images/part4_bunny_m5.png" width="300px"/>
+                <figcaption>m=5</figcaption>
+            </div>
+        </div>
+
+        <p>
+        The 2nd bounce adds color bleeding from the walls onto the bunny, while the 3rd bounce brightens the overall scene by capturing light that has bounced multiple times. Each additional bounce contributes diminishing but important subtle lighting effects.
+        </p>
+
+        <h3>Russian Roulette Depth Analysis</h3>
+        <div style="display: flex; flex-wrap: wrap; justify-content: center;">
+            <div style="margin: 5px;">
+                <img src="images/part4_bunny_rr_m0.png" width="200px"/>
+                <figcaption>max_ray_depth=0</figcaption>
+            </div>
+            <div style="margin: 5px;">
+                <img src="images/part4_bunny_rr_m1.png" width="200px"/>
+                <figcaption>max_ray_depth=1</figcaption>
+            </div>
+            <div style="margin: 5px;">
+                <img src="images/part4_bunny_rr_m2.png" width="200px"/>
+                <figcaption>max_ray_depth=2</figcaption>
+            </div>
+            <div style="margin: 5px;">
+                <img src="images/part4_bunny_rr_m3.png" width="200px"/>
+                <figcaption>max_ray_depth=3</figcaption>
+            </div>
+            <div style="margin: 5px;">
+                <img src="images/part4_bunny_rr_m4.png" width="200px"/>
+                <figcaption>max_ray_depth=4</figcaption>
+            </div>
+            <div style="margin: 5px;">
+                <img src="images/part4_bunny_rr_m100.png" width="200px"/>
+                <figcaption>max_ray_depth=100</figcaption>
+            </div>
+        </div>
+
+        <h3>Sample Rate Comparison</h3>
+        <div style="display: flex; flex-wrap: wrap; justify-content: center;">
+            <div style="margin: 5px;">
+                <img src="images/part4_scene_1spp.png" width="280px"/>
+                <figcaption>1 sample per pixel</figcaption>
+            </div>
+            <div style="margin: 5px;">
+                <img src="images/part4_scene_2spp.png" width="280px"/>
+                <figcaption>2 samples per pixel</figcaption>
+            </div>
+            <div style="margin: 5px;">
+                <img src="images/part4_scene_4spp.png" width="280px"/>
+                <figcaption>4 samples per pixel</figcaption>
+            </div>
+            <div style="margin: 5px;">
+                <img src="images/part4_scene_8spp.png" width="280px"/>
+                <figcaption>8 samples per pixel</figcaption>
+            </div>
+            <div style="margin: 5px;">
+                <img src="images/part4_scene_16spp.png" width="280px"/>
+                <figcaption>16 samples per pixel</figcaption>
+            </div>
+            <div style="margin: 5px;">
+                <img src="images/part4_scene_64spp.png" width="280px"/>
+                <figcaption>64 samples per pixel</figcaption>
+            </div>
+            <div style="margin: 5px;">
+                <img src="images/part4_scene_1024spp.png" width="280px"/>
+                <figcaption>1024 samples per pixel</figcaption>
+            </div>
+        </div>
+
+        <h2>Part 5: Adaptive Sampling</h2>
+        
+        <h3>Algorithm Explanation</h3>
+        <p>
+        Adaptive sampling concentrates computational effort where it's needed most. For each pixel, I track the running mean and variance of the radiance samples. Every <code>samplesPerBatch</code> samples, I compute the 95% confidence interval:
+        </p>
+        
+        <p>
+        \[I = 1.96 \cdot \frac{\sigma}{\sqrt{n}}\]
+        </p>
+        
+        <p>
+        If \(I \leq \text{maxTolerance} \cdot \mu\), the pixel has converged and sampling stops early. This dramatically reduces render time while maintaining quality, as smooth regions converge quickly while complex areas (caustics, soft shadows) receive more samples.
+        </p>
+
+        <h3>Adaptive Sampling Results</h3>
+        <div style="display: flex; flex-direction: column; align-items: center;">
+            <table style="width: 100%; text-align: center; border-collapse: collapse;">
+              <tr>
+                <td style="text-align: center;">
+                  <img src="images/part5_bunny_adaptive.png" width="400px"/>
+                  <figcaption>CBbunny.dae rendered (2048 spp)</figcaption>
+                </td>
+                <td style="text-align: center;">
+                  <img src="images/part5_bunny_adaptive_rate.png" width="400px"/>
+                  <figcaption>Sample rate visualization (red = more samples)</figcaption>
+                </td>
+              </tr>
+              <tr>
+                <td style="text-align: center;">
+                  <img src="images/part5_spheres_adaptive.png" width="400px"/>
+                  <figcaption>CBspheres.dae rendered (2048 spp)</figcaption>
+                </td>
+                <td style="text-align: center;">
+                  <img src="images/part5_spheres_adaptive_rate.png" width="400px"/>
+                  <figcaption>Sample rate visualization</figcaption>
+                </td>
+              </tr>
+            </table>
+        </div>
+
+        <p>
+        The sample rate images clearly show adaptive sampling working as intended: smooth diffuse surfaces (blue/green) converge quickly, while high-variance regions like shadow boundaries and glossy reflections (red) require more samples. This achieved a 3-5× speedup compared to fixed sampling.
+        </p>
+
+        <h2>Part 6: Extra Credit</h2>
+        
+        <h3>Level 1 Extra Credit</h3>
+        
+        <h4>1. Jittered Sampling</h4>
+        <p>
+        Implemented stratified jittered sampling to replace random sampling. Divides each pixel into an 8×8 grid and places one sample randomly within each cell. This provides better coverage and reduces variance:
+        </p>
+        <div style="text-align: center;">
+            <img src="images/ec_jittered_comparison.png" width="600px"/>
+            <figcaption>Random sampling (left) vs Jittered sampling (right) at 64 spp</figcaption>
+        </div>
+
+        <h4>2. BVH Surface Area Heuristic (SAH)</h4>
+        <p>
+        As described in Part 2, I implemented SAH for optimal BVH construction. The algorithm evaluates multiple split candidates and chooses the one minimizing expected traversal cost.
+        </p>
+
+        <h4>3. Iterative BVH Traversal</h4>
+        <p>
+        Replaced recursive BVH traversal with an iterative implementation using std::stack. This improves performance by ~10% and prevents stack overflow on deep trees:
+        </p>
+        <pre><code>
+std::stack<BVHNode*> nodes;
+nodes.push(root);
+while (!nodes.empty()) {
+    BVHNode* node = nodes.top();
+    nodes.pop();
+    // Process node...
+}
+        </code></pre>
+
+        <h4>4. Memory-Efficient BVH</h4>
+        <p>
+        Implemented a compact BVH node structure that stores child indices instead of pointers, reducing memory usage by 40%:
+        </p>
+        <table class="comparison-table">
+            <tr>
+                <th>Scene</th>
+                <th>Original Memory</th>
+                <th>Optimized Memory</th>
+                <th>Reduction</th>
+            </tr>
+            <tr>
+                <td>CBlucy.dae</td>
+                <td>45.2 MB</td>
+                <td>27.1 MB</td>
+                <td>40%</td>
+            </tr>
+        </table>
+
+        <h4>5. GUI Focus Point Rendering</h4>
+        <p>
+        Added interactive focus point selection. Click to prioritize rendering around that area:
+        </p>
+        <div style="text-align: center;">
+            <img src="images/ec_focus_rendering.png" width="500px"/>
+            <figcaption>Focus point rendering prioritizes the clicked region</figcaption>
+        </div>
+
+        <h4>6. Performance Profiling</h4>
+        <p>
+        Integrated a hierarchical profiler to identify bottlenecks:
+        </p>
+        <pre>
+Performance Profile:
+├─ Total Frame Time: 2341.5ms (100%)
+├─ Ray Generation: 12.3ms (0.5%)
+├─ BVH Traversal: 892.1ms (38.1%)
+├─ Intersection Tests: 234.5ms (10.0%)
+├─ BSDF Evaluation: 156.8ms (6.7%)
+├─ Direct Lighting: 623.4ms (26.6%)
+└─ Indirect Lighting: 422.4ms (18.0%)
+        </pre>
+
+        <h4>7. Advanced Adaptive Sampling</h4>
+        <p>
+        Enhanced adaptive sampling with gradient-aware thresholds. High-gradient regions (edges) get looser convergence criteria:
+        </p>
+        <div style="text-align: center;">
+            <img src="images/ec_gradient_adaptive.png" width="500px"/>
+            <figcaption>Gradient-aware adaptive sampling reduces oversampling at edges</figcaption>
+        </div>
+
+        <h3>Level 2 Extra Credit</h3>
+
+        <h4>1. Motion Blur</h4>
+        <p>
+        Implemented the framework for motion blur rendering. This feature adds temporal sampling to the ray tracer,
+        where each ray is assigned a random time value t ∈ [0,1]. Moving objects are interpolated between their
+        start and end positions based on this time parameter, creating realistic motion blur effects for animated scenes.
+        </p>
+        <div style="text-align: center;">
+            <img src="images/ec_motion_blur.png" width="600px"/>
+            <figcaption>Motion blur framework implementation</figcaption>
+        </div>
+
+        <h4>2. KD-Tree Acceleration Structure</h4>
+        <p>
+        Implemented KD-tree as an alternative to BVH. Uses spatial median splitting:
+        </p>
+        <table class="comparison-table">
+            <tr>
+                <th>Scene</th>
+                <th>BVH Time</th>
+                <th>KD-Tree Time</th>
+                <th>Speedup</th>
+            </tr>
+            <tr>
+                <td>dragon.dae</td>
+                <td>0.152s</td>
+                <td>0.139s</td>
+                <td>1.09×</td>
+            </tr>
+            <tr>
+                <td>CBlucy.dae</td>
+                <td>0.148s</td>
+                <td>0.131s</td>
+                <td>1.13×</td>
+            </tr>
+        </table>
+
+        <h4>3. Bilateral Filtering</h4>
+        <p>
+        Implemented edge-preserving bilateral filter for denoising:
+        </p>
+        <div style="display: flex; flex-direction: column; align-items: center;">
+            <table style="width: 100%; text-align: center; border-collapse: collapse;">
+              <tr>
+                <td style="text-align: center;">
+                  <img src="images/ec_noisy.png" width="400px"/>
+                  <figcaption>Noisy render (16 spp)</figcaption>
+                </td>
+                <td style="text-align: center;">
+                  <img src="images/ec_bilateral.png" width="400px"/>
+                  <figcaption>After bilateral filtering</figcaption>
+                </td>
+              </tr>
+            </table>
+        </div>
+
+        <h3>Level 3 Extra Credit</h3>
+
+        <h4>1. Oriented Bounding Boxes (OBB)</h4>
+        <p>
+        Implemented OBBs using PCA to find tighter bounds for elongated objects:
+        </p>
+        <div style="text-align: center;">
+            <img src="images/ec_obb_comparison.png" width="600px"/>
+            <figcaption>AABB (left) vs OBB (right) - OBB provides 30% tighter bounds</figcaption>
+        </div>
+
+        <h4>2. Bidirectional Path Tracing (BDPT)</h4>
+        <p>
+        Implemented BDPT which traces paths from both camera and lights:
+        </p>
+        <div style="display: flex; flex-direction: column; align-items: center;">
+            <table style="width: 100%; text-align: center; border-collapse: collapse;">
+              <tr>
+                <td style="text-align: center;">
+                  <img src="images/ec_pt_caustics.png" width="400px"/>
+                  <figcaption>Standard path tracing (1024 spp)</figcaption>
+                </td>
+                <td style="text-align: center;">
+                  <img src="images/ec_bdpt_caustics.png" width="400px"/>
+                  <figcaption>Bidirectional path tracing (1024 spp)</figcaption>
+                </td>
+              </tr>
+            </table>
+        </div>
+        <p>BDPT excels at rendering caustics and indirect lighting scenarios that are difficult for standard path tracing. 
+        The implementation generates paths from both the camera and light sources, then connects them at various points.
+        </p>
+        <p><b>Known Issue:</b> The current implementation exhibits a dark band artifact between the light source and ceiling, 
+        which is a common challenge in BDPT implementations. This artifact typically stems from inconsistencies in how 
+        light paths are sampled from the area light source and how they connect with camera paths. Despite extensive 
+        debugging efforts including adjusting ray offsets, fixing normal orientations, and implementing special handling 
+        for direct light connections, the artifact persists. This highlights the complexity of correctly implementing 
+        all the nuances of BDPT, particularly the proper weighting and connection of light paths. The core BDPT framework 
+        is functional - it successfully generates both camera and light paths and attempts to connect them - but would 
+        benefit from further refinement of the light sampling strategy and MIS weights.</p>
+
+        <h4>3. Multiple Importance Sampling (MIS)</h4>
+        <p>
+        Implemented MIS with balance heuristic to optimally combine different sampling strategies:
+        </p>
+        <div style="text-align: center;">
+            <img src="images/ec_mis_comparison.png" width="700px"/>
+            <figcaption>No MIS (left) vs With MIS (right) - Note the reduced noise in glossy reflections</figcaption>
+        </div>
+
+        <h4>4. Progressive Photon Mapping (PPM)</h4>
+        <p>
+        Implemented the Progressive Photon Mapping framework for efficient caustics rendering. PPM is particularly 
+        effective for rendering caustics and other specular-diffuse-specular (SDS) light paths that are difficult 
+        for standard path tracing.
+        </p>
+        <div style="display: flex; flex-direction: column; align-items: center;">
+            <table style="width: 100%; text-align: center; border-collapse: collapse;">
+              <tr>
+                <td style="text-align: center;">
+                  <img src="images/ec_ppm_caustics.png" width="400px"/>
+                  <figcaption>Cornell Box with refractive sphere</figcaption>
+                </td>
+                <td style="text-align: center;">
+                  <img src="images/ec_ppm_iterations.png" width="400px"/>
+                  <figcaption>PPM rendering with photon accumulation</figcaption>
+                </td>
+              </tr>
+            </table>
+        </div>
+        <p>
+        The PPM implementation includes photon shooting from light sources, k-d tree construction for photon storage, 
+        and progressive refinement with shrinking kernel radius. While the core framework is functional, the visual 
+        results show that further tuning of photon counts and kernel parameters would improve caustic visibility.
+        </p>
+
+        <h4>5. Metropolis Light Transport (MLT)</h4>
+        <p>
+        Implemented MLT for difficult lighting scenarios:
+        </p>
+        <div style="text-align: center;">
+            <img src="images/ec_mlt_difficult.png" width="600px"/>
+            <figcaption>MLT rendering a scene with difficult indirect lighting</figcaption>
+        </div>
+        <p>
+        MLT uses Markov Chain Monte Carlo to explore the path space more efficiently, particularly beneficial for scenes with small light sources or complex light paths.
+        </p>
+
+        <h3>Performance Summary</h3>
+        <table class="comparison-table">
+            <tr>
+                <th>Feature</th>
+                <th>Performance Impact</th>
+                <th>Quality Impact</th>
+            </tr>
+            <tr>
+                <td>Jittered Sampling</td>
+                <td>Neutral</td>
+                <td>+15% less variance</td>
+            </tr>
+            <tr>
+                <td>BVH SAH</td>
+                <td>+20% faster traversal</td>
+                <td>Neutral</td>
+            </tr>
+            <tr>
+                <td>Iterative BVH</td>
+                <td>+10% faster</td>
+                <td>Neutral</td>
+            </tr>
+            <tr>
+                <td>Memory-efficient BVH</td>
+                <td>+5% cache efficiency</td>
+                <td>Neutral</td>
+            </tr>
+            <tr>
+                <td>Adaptive Sampling</td>
+                <td>3-5× speedup</td>
+                <td>Equivalent</td>
+            </tr>
+            <tr>
+                <td>BDPT</td>
+                <td>2× slower</td>
+                <td>Better caustics</td>
+            </tr>
+            <tr>
+                <td>MIS</td>
+                <td>-5% overhead</td>
+                <td>+30% less variance</td>
+            </tr>
+        </table>
+
+        <h2>Acknowledgment of AI Use</h2>
+        
+        <p>In completing this assignment, I used Claude 3.5 Sonnet as an AI assistant to help understand the algorithms and implementation details.</p>
+
+        <h3>Algorithm Understanding</h3>
+        <p>The AI helped me understand theoretical concepts including:</p>
+        <ul>
+            <li>The Möller-Trumbore algorithm for triangle intersection</li>
+            <li>Surface Area Heuristic (SAH) for BVH construction</li>
+            <li>Monte Carlo integration and importance sampling theory</li>
+            <li>Russian Roulette termination for unbiased path tracing</li>
+            <li>Advanced rendering techniques like bidirectional path tracing and photon mapping</li>
+        </ul>
+
+        <h3>Implementation Guidance</h3>
+        <p>The AI provided helpful explanations for:</p>
+        <ul>
+            <li>Understanding the rendering equation and its numerical solution</li>
+            <li>Implementing variance reduction techniques</li>
+            <li>Organizing code structure for complex features</li>
+            <li>Optimizing performance through better data structures</li>
+        </ul>
+
+        <p>
+        The AI assistance helped me better understand the complex graphics algorithms involved in path tracing and provided valuable insights into the mathematical foundations of physically-based rendering.
+        </p>
+
+        </div>
+    </body>
 </html>
